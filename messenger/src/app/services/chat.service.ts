@@ -1,5 +1,7 @@
 import { Injectable, inject, NgZone, signal, OnDestroy } from '@angular/core';
-import { fromEvent, Subscription } from 'rxjs';
+import { Observable, Subscription, from, fromEvent, of } from 'rxjs';
+import { catchError, map, tap } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
 import { Message, MessageType } from '../models/message.model';
 import { AuthService } from './auth.service';
 import { supabase } from './supabase.client';
@@ -20,49 +22,58 @@ export class ChatService implements OnDestroy {
   private visibilitySub: Subscription;
 
   constructor() {
-    this.fetchAll();
+    this.fetchAll().subscribe();
 
     this.channel = supabase
       .channel('messages-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
-        () => this.zone.run(() => this.fetchAll()))
+        () => this.zone.run(() => this.fetchAll().subscribe()))
       .subscribe();
 
     this.pollId = setInterval(() => {
-      if (document.visibilityState === 'visible') this.fetchNew();
+      if (document.visibilityState === 'visible') this.fetchNew().subscribe();
     }, 5000);
 
     this.visibilitySub = fromEvent(document, 'visibilitychange').subscribe(() => {
-      if (document.visibilityState === 'visible') this.zone.run(() => this.fetchAll());
+      if (document.visibilityState === 'visible') this.zone.run(() => this.fetchAll().subscribe());
     });
   }
 
-  private async fetchAll(): Promise<void> {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: true });
-    if (error) return;
-    const msgs = (data ?? []) as Message[];
-    this.lastTimestamp = msgs.length ? (msgs[msgs.length - 1].created_at ?? null) : null;
-    this.messages.set(msgs);
-    this.loading.set(false);
+  private fetchAll(): Observable<void> {
+    return from(
+      supabase.from('messages').select('*').order('created_at', { ascending: true })
+    ).pipe(
+      tap(({ data, error }) => {
+        if (error) return;
+        const msgs = (data ?? []) as Message[];
+        this.lastTimestamp = msgs.length ? (msgs[msgs.length - 1].created_at ?? null) : null;
+        this.messages.set(msgs);
+        this.loading.set(false);
+      }),
+      map(() => void 0),
+      catchError(() => of(void 0))
+    );
   }
 
-  private async fetchNew(): Promise<void> {
-    if (!this.lastTimestamp) { this.fetchAll(); return; }
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .gt('created_at', this.lastTimestamp)
-      .order('created_at', { ascending: true });
-    if (error) return;
-    const newMsgs = (data ?? []) as Message[];
-    if (newMsgs.length) {
-      const merged = [...this.messages(), ...newMsgs];
-      this.lastTimestamp = merged[merged.length - 1].created_at ?? null;
-      this.messages.set(merged);
-    }
+  private fetchNew(): Observable<void> {
+    if (!this.lastTimestamp) return this.fetchAll();
+    return from(
+      supabase.from('messages').select('*')
+        .gt('created_at', this.lastTimestamp)
+        .order('created_at', { ascending: true })
+    ).pipe(
+      tap(({ data, error }) => {
+        if (error) return;
+        const newMsgs = (data ?? []) as Message[];
+        if (newMsgs.length) {
+          const merged = [...this.messages(), ...newMsgs];
+          this.lastTimestamp = merged[merged.length - 1].created_at ?? null;
+          this.messages.set(merged);
+        }
+      }),
+      map(() => void 0),
+      catchError(() => of(void 0))
+    );
   }
 
   async sendTextMessage(text: string): Promise<void> {
@@ -75,7 +86,7 @@ export class ChatService implements OnDestroy {
       content: text.trim()
     });
     if (error) throw error;
-    await this.fetchAll();
+    await firstValueFrom(this.fetchAll());
   }
 
   async updateMessage(id: string, content: string): Promise<void> {
@@ -84,7 +95,7 @@ export class ChatService implements OnDestroy {
       .update({ content: content.trim() })
       .eq('id', id);
     if (error) throw error;
-    await this.fetchAll();
+    await firstValueFrom(this.fetchAll());
   }
 
   async deleteMessage(id: string): Promise<void> {
@@ -93,7 +104,7 @@ export class ChatService implements OnDestroy {
       .delete()
       .eq('id', id);
     if (error) throw error;
-    await this.fetchAll();
+    await firstValueFrom(this.fetchAll());
   }
 
   async uploadMedia(file: Blob, type: MessageType, ext: string): Promise<void> {
@@ -114,7 +125,7 @@ export class ChatService implements OnDestroy {
       content: urlData.publicUrl
     });
     if (insertError) throw insertError;
-    await this.fetchAll();
+    await firstValueFrom(this.fetchAll());
   }
 
   ngOnDestroy(): void {
