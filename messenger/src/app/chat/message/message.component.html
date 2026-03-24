@@ -37,27 +37,49 @@
           <p class="mb-0 text-break msg-text">{{ message.content }}</p>
         }
         @case ('image') {
-          <img
-            [src]="message.content"
-            class="msg-media rounded"
-            alt="Image"
-            loading="lazy"
-            (click)="openMedia(message.content)"
-          />
+          <div class="media-wrap position-relative">
+            <img
+              [src]="message.content"
+              class="msg-media rounded"
+              alt="Image"
+              loading="lazy"
+              (click)="openMedia(message.content)"
+            />
+            @if (isOwn) {
+              <button mat-mini-fab class="media-delete-btn" color="warn"
+                (click)="confirmDelete($event)" matTooltip="Удалить">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+          </div>
         }
         @case ('video') {
-          <video
-            [src]="message.content"
-            class="msg-media rounded"
-            controls
-            playsinline
-            preload="metadata"
-          ></video>
+          <div class="media-wrap position-relative">
+            <video
+              [src]="message.content"
+              class="msg-media rounded"
+              controls
+              playsinline
+              preload="metadata"
+            ></video>
+            @if (isOwn) {
+              <button mat-mini-fab class="media-delete-btn" color="warn"
+                (click)="confirmDelete($event)" matTooltip="Удалить">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+          </div>
         }
         @case ('audio') {
           <div class="audio-wrapper d-flex align-items-center gap-2">
             <mat-icon class="text-secondary">mic</mat-icon>
             <audio [src]="message.content" controls class="audio-player"></audio>
+            @if (isOwn) {
+              <button mat-icon-button color="warn"
+                (click)="confirmDelete($event)" matTooltip="Удалить">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
           </div>
         }
       }
@@ -79,14 +101,12 @@
       </div>
     }
 
-    <!-- Actions popup -->
-    @if (showActions()) {
+    <!-- Actions popup (only for text messages) -->
+    @if (showActions() && message.type === 'text') {
       <div class="actions-popup" (click)="$event.stopPropagation()">
-        @if (message.type === 'text') {
-          <button mat-button class="action-item" (click)="startEdit($event)">
-            <mat-icon>edit</mat-icon> Редактировать
-          </button>
-        }
+        <button mat-button class="action-item" (click)="startEdit($event)">
+          <mat-icon>edit</mat-icon> Редактировать
+        </button>
         <button mat-button color="warn" class="action-item" (click)="confirmDelete($event)">
           <mat-icon>delete</mat-icon> Удалить
         </button>
