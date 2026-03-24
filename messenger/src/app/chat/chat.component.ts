@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../services/auth.service';
 import { ChatService } from '../services/chat.service';
 import { Message } from '../models/message.model';
@@ -22,6 +23,7 @@ import { MessageInputComponent } from './message-input/message-input.component';
     MatButtonModule,
     MatMenuModule,
     MatProgressSpinnerModule,
+    MatSnackBarModule,
     MessageComponent,
     MessageInputComponent
   ],
@@ -33,18 +35,31 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   auth = inject(AuthService);
   private chatService = inject(ChatService);
+  private snack = inject(MatSnackBar);
 
   messages = signal<Message[]>([]);
   loading = signal(true);
 
   private sub?: Subscription;
   private shouldScroll = false;
+  private prevCount = 0;
 
   ngOnInit(): void {
-    this.sub = this.chatService.getMessages().subscribe(msgs => {
-      this.messages.set(msgs);
-      this.loading.set(false);
-      this.shouldScroll = true;
+    this.sub = this.chatService.getMessages().subscribe({
+      next: msgs => {
+        const wasAtBottom = this.isNearBottom();
+        this.messages.set(msgs);
+        this.loading.set(false);
+        // Scroll only when new messages arrive and user is near bottom
+        if (msgs.length > this.prevCount && (wasAtBottom || this.prevCount === 0)) {
+          this.shouldScroll = true;
+        }
+        this.prevCount = msgs.length;
+      },
+      error: err => {
+        this.loading.set(false);
+        this.snack.open('Ошибка загрузки: ' + err.message, 'OK', { duration: 4000 });
+      }
     });
   }
 
@@ -57,6 +72,28 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   isOwn(msg: Message): boolean {
     return msg.sender_id === this.auth.currentUser()?.id;
+  }
+
+  async onDelete(id: string): Promise<void> {
+    try {
+      await this.chatService.deleteMessage(id);
+    } catch (e: any) {
+      this.snack.open('Ошибка удаления', 'OK', { duration: 3000 });
+    }
+  }
+
+  async onEdit(event: { id: string; content: string }): Promise<void> {
+    try {
+      await this.chatService.updateMessage(event.id, event.content);
+    } catch (e: any) {
+      this.snack.open('Ошибка редактирования', 'OK', { duration: 3000 });
+    }
+  }
+
+  private isNearBottom(): boolean {
+    const el = this.messageList?.nativeElement;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 100;
   }
 
   private scrollToBottom(): void {

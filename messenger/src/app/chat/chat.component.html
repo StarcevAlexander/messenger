@@ -36,6 +36,8 @@
           [message]="msg"
           [isOwn]="isOwn(msg)"
           class="d-block"
+          (deleteMsg)="onDelete($event)"
+          (editMsg)="onEdit($event)"
         ></app-message>
       }
     }

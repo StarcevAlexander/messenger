@@ -13,6 +13,8 @@ export class ChatService {
 
   getMessages(): Observable<Message[]> {
     return new Observable(observer => {
+      let current: Message[] = [];
+
       // Initial load
       supabase
         .from('messages')
@@ -20,32 +22,31 @@ export class ChatService {
         .order('created_at', { ascending: true })
         .then(({ data, error }) => {
           if (error) return observer.error(error);
-          observer.next((data ?? []) as Message[]);
+          current = (data ?? []) as Message[];
+          observer.next(current);
         });
 
-      // Real-time subscription
+      // Real-time: INSERT, UPDATE, DELETE
       const channel = supabase
-        .channel('messages-channel')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages' },
-          payload => {
-            this.zone.run(() => {
-              supabase
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: true })
-                .then(({ data }) => {
-                  if (data) observer.next(data as Message[]);
-                });
-            });
-          }
-        )
+        .channel('messages-rt')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+          payload => this.zone.run(() => {
+            current = [...current, payload.new as Message];
+            observer.next(current);
+          }))
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' },
+          payload => this.zone.run(() => {
+            current = current.map(m => m.id === (payload.new as Message).id ? payload.new as Message : m);
+            observer.next(current);
+          }))
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' },
+          payload => this.zone.run(() => {
+            current = current.filter(m => m.id !== (payload.old as any).id);
+            observer.next(current);
+          }))
         .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      return () => supabase.removeChannel(channel);
     });
   }
 
@@ -61,6 +62,22 @@ export class ChatService {
     if (error) throw error;
   }
 
+  async updateMessage(id: string, content: string): Promise<void> {
+    const { error } = await supabase
+      .from('messages')
+      .update({ content: content.trim() })
+      .eq('id', id);
+    if (error) throw error;
+  }
+
+  async deleteMessage(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  }
+
   async uploadMedia(file: Blob, type: MessageType, ext: string): Promise<void> {
     const user = this.auth.currentUser();
     if (!user) return;
@@ -69,13 +86,9 @@ export class ChatService {
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
       .upload(filename, file, { cacheControl: '3600', upsert: false });
-
     if (uploadError) throw uploadError;
 
-    const { data: urlData } = supabase.storage
-      .from(BUCKET)
-      .getPublicUrl(filename);
-
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filename);
     const { error: insertError } = await supabase.from('messages').insert({
       sender_id: user.id,
       sender_name: user.name,
