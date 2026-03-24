@@ -42,19 +42,13 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   private sub?: Subscription;
   private shouldScroll = false;
-  private prevCount = 0;
 
   ngOnInit(): void {
     this.sub = this.chatService.getMessages().subscribe({
       next: msgs => {
-        const wasAtBottom = this.isNearBottom();
         this.messages.set(msgs);
         this.loading.set(false);
-        // Scroll only when new messages arrive and user is near bottom
-        if (msgs.length > this.prevCount && (wasAtBottom || this.prevCount === 0)) {
-          this.shouldScroll = true;
-        }
-        this.prevCount = msgs.length;
+        this.shouldScroll = true;
       },
       error: err => {
         this.loading.set(false);
@@ -88,12 +82,6 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     } catch (e: any) {
       this.snack.open('Ошибка редактирования', 'OK', { duration: 3000 });
     }
-  }
-
-  private isNearBottom(): boolean {
-    const el = this.messageList?.nativeElement;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 100;
   }
 
   private scrollToBottom(): void {
