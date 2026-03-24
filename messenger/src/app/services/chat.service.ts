@@ -16,6 +16,10 @@ export class ChatService {
 
   getMessages(): Observable<Message[]> {
     return new Observable(observer => {
+      let messages: Message[] = [];
+      let lastTimestamp: string | null = null;
+
+      // Полная загрузка всех сообщений
       const fetchAll = () =>
         supabase
           .from('messages')
@@ -23,36 +27,53 @@ export class ChatService {
           .order('created_at', { ascending: true })
           .then(({ data, error }) => {
             if (error) return observer.error(error);
-            observer.next((data ?? []) as Message[]);
+            messages = (data ?? []) as Message[];
+            lastTimestamp = messages.length ? (messages[messages.length - 1].created_at ?? null) : null;
+            observer.next(messages);
           });
+
+      // Только новые сообщения (для polling)
+      const fetchNew = () => {
+        if (!lastTimestamp) return fetchAll();
+        return supabase
+          .from('messages')
+          .select('*')
+          .gt('created_at', lastTimestamp)
+          .order('created_at', { ascending: true })
+          .then(({ data, error }) => {
+            if (error) return observer.error(error);
+            const newMsgs = (data ?? []) as Message[];
+            if (newMsgs.length) {
+              messages = [...messages, ...newMsgs];
+              lastTimestamp = messages[messages.length - 1].created_at ?? null;
+              observer.next(messages);
+            }
+          });
+      };
 
       // Начальная загрузка
       fetchAll();
 
-      // После ручных операций (send/delete/update)
+      // После ручных операций (send/delete/update) — полный рефреш
       const refreshSub = this.refresh$.subscribe(() =>
         this.zone.run(() => fetchAll())
       );
 
-      // Realtime Supabase (мгновенно, если репликация включена)
+      // Realtime Supabase — полный рефреш (если репликация включена)
       const channel = supabase
         .channel('messages-rt')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
           () => this.zone.run(() => fetchAll()))
         .subscribe();
 
-      // Polling каждые 5 сек — гарантированное получение чужих сообщений
+      // Polling каждые 5 сек — только новые сообщения
       const pollId = setInterval(() => {
-        if (document.visibilityState === 'visible') {
-          fetchAll();
-        }
+        if (document.visibilityState === 'visible') fetchNew();
       }, 5000);
 
-      // При возврате на вкладку — сразу обновить
+      // При возврате на вкладку — полный рефреш
       const visibilitySub = fromEvent(document, 'visibilitychange').subscribe(() => {
-        if (document.visibilityState === 'visible') {
-          this.zone.run(() => fetchAll());
-        }
+        if (document.visibilityState === 'visible') this.zone.run(() => fetchAll());
       });
 
       return () => {
