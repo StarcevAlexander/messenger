@@ -1,0 +1,125 @@
+<!-- Camera / Video Capture Overlay -->
+@if (captureMode() === 'photo' || captureMode() === 'video') {
+  <div class="capture-overlay">
+    <div class="capture-inner">
+
+      @if (!capturedUrl()) {
+        <!-- Live preview -->
+        <video
+          #cameraPreview
+          class="camera-preview"
+          autoplay
+          playsinline
+          muted
+        ></video>
+
+        <div class="capture-controls d-flex justify-content-center align-items-center gap-3 mt-3">
+          <button mat-icon-button (click)="closeCapture()" matTooltip="Закрыть">
+            <mat-icon>close</mat-icon>
+          </button>
+
+          <button mat-icon-button (click)="flipCamera()" matTooltip="Сменить камеру">
+            <mat-icon>flip_camera_ios</mat-icon>
+          </button>
+
+          @if (captureMode() === 'photo') {
+            <button mat-fab color="primary" (click)="takePhoto()">
+              <mat-icon>camera_alt</mat-icon>
+            </button>
+          } @else {
+            @if (!isRecording()) {
+              <button mat-fab color="warn" (click)="startVideoRecord()">
+                <mat-icon>videocam</mat-icon>
+              </button>
+            } @else {
+              <button mat-fab color="primary" (click)="stopVideoRecord()">
+                <mat-icon>stop</mat-icon>
+              </button>
+              <span class="recording-badge">{{ formatTime(recordingSeconds()) }}</span>
+            }
+          }
+        </div>
+      } @else {
+        <!-- Preview captured -->
+        @if (captureMode() === 'photo') {
+          <img [src]="capturedUrl()" class="captured-preview" alt="captured" />
+        } @else {
+          <video [src]="capturedUrl()" class="captured-preview" controls playsinline></video>
+        }
+
+        <div class="d-flex justify-content-center gap-3 mt-3">
+          <button mat-stroked-button (click)="capturedBlob.set(null); capturedUrl.set(''); openCamera(captureMode() === 'video' ? 'video' : 'photo')">
+            <mat-icon>refresh</mat-icon> Переснять
+          </button>
+          <button mat-raised-button color="primary" (click)="sendCaptured()" [disabled]="loading()">
+            @if (loading()) {
+              <ng-container><mat-spinner diameter="20"></mat-spinner></ng-container>
+            } @else {
+              <ng-container><mat-icon>send</mat-icon> Отправить</ng-container>
+            }
+          </button>
+        </div>
+      }
+
+    </div>
+  </div>
+}
+
+<!-- Main Input Bar -->
+<div class="input-bar d-flex align-items-end gap-2 p-2">
+
+  <!-- Hidden file inputs -->
+  <input #fileInput type="file" accept="image/*" class="d-none" (change)="onFileSelected($event, 'image')" />
+  <input #videoInput type="file" accept="video/*" class="d-none" (change)="onFileSelected($event, 'video')" />
+
+  <!-- Media buttons -->
+  <button mat-icon-button matTooltip="Фото из галереи" (click)="triggerFileInput('image')">
+    <mat-icon>photo</mat-icon>
+  </button>
+  <button mat-icon-button matTooltip="Камера" (click)="openCamera('photo')">
+    <mat-icon>camera_alt</mat-icon>
+  </button>
+  <button mat-icon-button matTooltip="Видео" (click)="openCamera('video')">
+    <mat-icon>videocam</mat-icon>
+  </button>
+
+  <!-- Voice recording -->
+  @if (captureMode() === 'audio' && isRecording()) {
+    <button mat-icon-button color="warn" matTooltip="Остановить запись" (click)="stopVoice()">
+      <mat-icon>stop</mat-icon>
+    </button>
+    <span class="recording-badge-inline">{{ formatTime(recordingSeconds()) }}</span>
+  } @else {
+    <button mat-icon-button matTooltip="Голосовое сообщение" (click)="startVoice()">
+      <mat-icon>mic</mat-icon>
+    </button>
+  }
+
+  <!-- Text input -->
+  <div class="flex-grow-1 text-input-wrap">
+    <textarea
+      class="form-control text-input"
+      [(ngModel)]="text"
+      (keydown)="onKeydown($event)"
+      placeholder="Написать сообщение..."
+      rows="1"
+      [disabled]="loading()"
+    ></textarea>
+  </div>
+
+  <!-- Send button -->
+  <button
+    mat-fab
+    color="primary"
+    class="send-btn"
+    (click)="sendText()"
+    [disabled]="!text.trim() || loading()"
+    matTooltip="Отправить"
+  >
+    @if (loading()) {
+      <mat-spinner diameter="24" color="accent"></mat-spinner>
+    } @else {
+      <mat-icon>send</mat-icon>
+    }
+  </button>
+</div>

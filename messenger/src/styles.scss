@@ -1,0 +1,38 @@
+@use '@angular/material' as mat;
+
+// Bootstrap
+@use 'bootstrap/scss/bootstrap';
+
+// Material theme
+@include mat.core();
+
+$theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: mat.$azure-palette,
+  ),
+  typography: (
+    brand-family: 'Roboto, sans-serif',
+    plain-family: 'Roboto, sans-serif',
+  ),
+));
+
+html {
+  @include mat.all-component-themes($theme);
+}
+
+// Global
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: #fff;
+}
+
+// Fix mat-card conflicts with Bootstrap
+.mat-mdc-card {
+  --mdc-elevated-card-container-shape: 12px;
+}

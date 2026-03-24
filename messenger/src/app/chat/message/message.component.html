@@ -1,0 +1,41 @@
+<div class="message-wrapper d-flex mb-2" [class.own]="isOwn" [class.other]="!isOwn">
+  <div class="message-bubble">
+    @if (!isOwn) {
+      <div class="sender-name small fw-bold mb-1">{{ message.senderName }}</div>
+    }
+
+    @switch (message.type) {
+      @case ('text') {
+        <p class="mb-0 text-break">{{ message.content }}</p>
+      }
+      @case ('image') {
+        <img
+          [src]="message.content"
+          class="msg-media rounded"
+          alt="Image"
+          loading="lazy"
+          (click)="openMedia(message.content)"
+        />
+      }
+      @case ('video') {
+        <video
+          [src]="message.content"
+          class="msg-media rounded"
+          controls
+          playsinline
+          preload="metadata"
+        ></video>
+      }
+      @case ('audio') {
+        <div class="audio-wrapper d-flex align-items-center gap-2">
+          <mat-icon class="text-secondary">mic</mat-icon>
+          <audio [src]="message.content" controls class="audio-player"></audio>
+        </div>
+      }
+    }
+
+    <div class="msg-time text-end small mt-1">
+      {{ getTime() | date:'HH:mm' }}
+    </div>
+  </div>
+</div>

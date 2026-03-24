@@ -1,0 +1,77 @@
+.input-bar {
+  background: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.text-input-wrap {
+  min-width: 0;
+}
+
+.text-input {
+  border-radius: 20px;
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 8px 14px;
+}
+
+.send-btn {
+  width: 44px !important;
+  height: 44px !important;
+  flex-shrink: 0;
+}
+
+// Camera overlay
+.capture-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.capture-inner {
+  width: 100%;
+  max-width: 480px;
+  padding: 16px;
+  color: white;
+}
+
+.camera-preview,
+.captured-preview {
+  width: 100%;
+  max-height: 60vh;
+  border-radius: 12px;
+  background: #000;
+  display: block;
+  object-fit: cover;
+}
+
+.capture-controls {
+  flex-wrap: wrap;
+  gap: 12px;
+  button {
+    color: white;
+  }
+}
+
+.recording-badge,
+.recording-badge-inline {
+  background: #e53935;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

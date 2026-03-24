@@ -1,0 +1,48 @@
+<div class="chat-layout d-flex flex-column vh-100">
+
+  <!-- Toolbar -->
+  <mat-toolbar color="primary" class="flex-shrink-0 chat-toolbar">
+    <mat-icon class="me-2">chat</mat-icon>
+    <span class="flex-grow-1">Messenger</span>
+    <span class="user-chip badge bg-light text-dark me-2">
+      {{ auth.currentUser()?.name }}
+    </span>
+    <button mat-icon-button [matMenuTriggerFor]="menu">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Выйти</span>
+      </button>
+    </mat-menu>
+  </mat-toolbar>
+
+  <!-- Messages -->
+  <div #messageList class="messages-list flex-grow-1 overflow-auto py-3">
+
+    @if (loading()) {
+      <div class="d-flex justify-content-center mt-5">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else if (messages().length === 0) {
+      <div class="text-center text-muted mt-5">
+        <mat-icon style="font-size:48px;width:48px;height:48px;">chat_bubble_outline</mat-icon>
+        <p class="mt-2">Начните диалог</p>
+      </div>
+    } @else {
+      @for (msg of messages(); track msg.id) {
+        <app-message
+          [message]="msg"
+          [isOwn]="isOwn(msg)"
+          class="d-block"
+        ></app-message>
+      }
+    }
+
+  </div>
+
+  <!-- Input -->
+  <app-message-input></app-message-input>
+
+</div>

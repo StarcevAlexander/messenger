@@ -1,0 +1,54 @@
+<div class="login-wrapper d-flex align-items-center justify-content-center min-vh-100">
+  <mat-card class="login-card shadow-lg">
+    <mat-card-header class="justify-content-center mb-3">
+      <div class="text-center w-100">
+        <mat-icon class="login-icon text-primary">chat</mat-icon>
+        <mat-card-title class="mt-2">Messenger</mat-card-title>
+        <mat-card-subtitle>Введите PIN-код для входа</mat-card-subtitle>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+        <mat-form-field appearance="outline" class="w-100">
+          <mat-label>PIN-код</mat-label>
+          <input
+            matInput
+            [(ngModel)]="pin"
+            name="pin"
+            [type]="hide() ? 'password' : 'text'"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="6"
+            required
+            autocomplete="off"
+            placeholder="Введите PIN"
+          />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            (click)="toggleHide()"
+            [attr.aria-label]="'Hide password'"
+          >
+            <mat-icon>{{ hide() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+        </mat-form-field>
+
+        @if (error()) {
+          <div class="alert alert-danger py-2 text-center small">{{ error() }}</div>
+        }
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="submit"
+          class="w-100 mt-2"
+          [disabled]="!pin"
+        >
+          Войти
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>
