@@ -42,13 +42,16 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   private sub?: Subscription;
   private shouldScroll = false;
+  private prevCount = 0;
 
   ngOnInit(): void {
     this.sub = this.chatService.getMessages().subscribe({
       next: msgs => {
+        const hasNew = msgs.length !== this.prevCount;
+        this.prevCount = msgs.length;
         this.messages.set(msgs);
         this.loading.set(false);
-        this.shouldScroll = true;
+        if (hasNew) this.shouldScroll = true;
       },
       error: err => {
         this.loading.set(false);

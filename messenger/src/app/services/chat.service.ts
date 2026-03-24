@@ -41,12 +41,12 @@ export class ChatService {
           () => this.zone.run(() => fetchAll()))
         .subscribe();
 
-      // Polling каждые 3 сек — гарантированное получение чужих сообщений
+      // Polling каждые 5 сек — гарантированное получение чужих сообщений
       const pollId = setInterval(() => {
         if (document.visibilityState === 'visible') {
           fetchAll();
         }
-      }, 3000);
+      }, 5000);
 
       // При возврате на вкладку — сразу обновить
       const visibilitySub = fromEvent(document, 'visibilitychange').subscribe(() => {
