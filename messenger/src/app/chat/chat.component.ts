@@ -1,7 +1,6 @@
 import {
-  Component, OnInit, OnDestroy, inject, signal, ViewChild, ElementRef, AfterViewChecked
+  Component, inject, ViewChild, ElementRef, AfterViewChecked, effect
 } from '@angular/core';
-import { Subscription } from 'rxjs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -30,41 +29,24 @@ import { MessageInputComponent } from './message-input/message-input.component';
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
-export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
+export class ChatComponent implements AfterViewChecked {
   @ViewChild('messageList') messageList!: ElementRef<HTMLDivElement>;
 
   auth = inject(AuthService);
-  private chatService = inject(ChatService);
+  chatService = inject(ChatService);
   private snack = inject(MatSnackBar);
 
-  messages = signal<Message[]>([]);
-  loading = signal(true);
-
-  private sub?: Subscription;
   private shouldScroll = false;
   private prevCount = 0;
 
-  ngOnInit(): void {
-    this.sub = this.chatService.getMessages().subscribe({
-      next: msgs => {
-        const hasNew = msgs.length !== this.prevCount;
+  constructor() {
+    effect(() => {
+      const msgs = this.chatService.messages();
+      if (msgs.length !== this.prevCount) {
         this.prevCount = msgs.length;
-        this.messages.set(msgs);
-        this.loading.set(false);
-        if (hasNew) this.shouldScroll = true;
-      },
-      error: err => {
-        this.loading.set(false);
-        this.snack.open('Ошибка загрузки: ' + err.message, 'OK', { duration: 4000 });
+        this.shouldScroll = true;
       }
     });
-  }
-
-  ngAfterViewChecked(): void {
-    if (this.shouldScroll) {
-      this.scrollToBottom();
-      this.shouldScroll = false;
-    }
   }
 
   isOwn(msg: Message): boolean {
@@ -74,7 +56,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   async onDelete(id: string): Promise<void> {
     try {
       await this.chatService.deleteMessage(id);
-    } catch (e: any) {
+    } catch {
       this.snack.open('Ошибка удаления', 'OK', { duration: 3000 });
     }
   }
@@ -82,8 +64,15 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   async onEdit(event: { id: string; content: string }): Promise<void> {
     try {
       await this.chatService.updateMessage(event.id, event.content);
-    } catch (e: any) {
+    } catch {
       this.snack.open('Ошибка редактирования', 'OK', { duration: 3000 });
+    }
+  }
+
+  ngAfterViewChecked(): void {
+    if (this.shouldScroll) {
+      this.scrollToBottom();
+      this.shouldScroll = false;
     }
   }
 
@@ -94,9 +83,5 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   logout(): void {
     this.auth.logout();
-  }
-
-  ngOnDestroy(): void {
-    this.sub?.unsubscribe();
   }
 }

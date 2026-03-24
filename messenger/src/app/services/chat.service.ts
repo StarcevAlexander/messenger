@@ -1,5 +1,5 @@
-import { Injectable, inject, NgZone } from '@angular/core';
-import { Observable, Subject, fromEvent, merge } from 'rxjs';
+import { Injectable, inject, NgZone, signal, OnDestroy } from '@angular/core';
+import { fromEvent, Subscription } from 'rxjs';
 import { Message, MessageType } from '../models/message.model';
 import { AuthService } from './auth.service';
 import { supabase } from './supabase.client';
@@ -7,82 +7,62 @@ import { supabase } from './supabase.client';
 const BUCKET = 'media';
 
 @Injectable({ providedIn: 'root' })
-export class ChatService {
+export class ChatService implements OnDestroy {
   private auth = inject(AuthService);
   private zone = inject(NgZone);
 
-  /** Ручной триггер обновления (после отправки/удаления/редактирования) */
-  private refresh$ = new Subject<void>();
+  readonly messages = signal<Message[]>([]);
+  readonly loading = signal(true);
 
-  getMessages(): Observable<Message[]> {
-    return new Observable(observer => {
-      let messages: Message[] = [];
-      let lastTimestamp: string | null = null;
+  private lastTimestamp: string | null = null;
+  private pollId: ReturnType<typeof setInterval> | null = null;
+  private channel: any;
+  private visibilitySub: Subscription;
 
-      // Полная загрузка всех сообщений
-      const fetchAll = () =>
-        supabase
-          .from('messages')
-          .select('*')
-          .order('created_at', { ascending: true })
-          .then(({ data, error }) => {
-            if (error) return observer.error(error);
-            messages = (data ?? []) as Message[];
-            lastTimestamp = messages.length ? (messages[messages.length - 1].created_at ?? null) : null;
-            observer.next(messages);
-          });
+  constructor() {
+    this.fetchAll();
 
-      // Только новые сообщения (для polling)
-      const fetchNew = () => {
-        if (!lastTimestamp) return fetchAll();
-        return supabase
-          .from('messages')
-          .select('*')
-          .gt('created_at', lastTimestamp)
-          .order('created_at', { ascending: true })
-          .then(({ data, error }) => {
-            if (error) return observer.error(error);
-            const newMsgs = (data ?? []) as Message[];
-            if (newMsgs.length) {
-              messages = [...messages, ...newMsgs];
-              lastTimestamp = messages[messages.length - 1].created_at ?? null;
-              observer.next(messages);
-            }
-          });
-      };
+    this.channel = supabase
+      .channel('messages-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
+        () => this.zone.run(() => this.fetchAll()))
+      .subscribe();
 
-      // Начальная загрузка
-      fetchAll();
+    this.pollId = setInterval(() => {
+      if (document.visibilityState === 'visible') this.fetchNew();
+    }, 5000);
 
-      // После ручных операций (send/delete/update) — полный рефреш
-      const refreshSub = this.refresh$.subscribe(() =>
-        this.zone.run(() => fetchAll())
-      );
-
-      // Realtime Supabase — полный рефреш (если репликация включена)
-      const channel = supabase
-        .channel('messages-rt')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
-          () => this.zone.run(() => fetchAll()))
-        .subscribe();
-
-      // Polling каждые 5 сек — только новые сообщения
-      const pollId = setInterval(() => {
-        if (document.visibilityState === 'visible') fetchNew();
-      }, 5000);
-
-      // При возврате на вкладку — полный рефреш
-      const visibilitySub = fromEvent(document, 'visibilitychange').subscribe(() => {
-        if (document.visibilityState === 'visible') this.zone.run(() => fetchAll());
-      });
-
-      return () => {
-        supabase.removeChannel(channel);
-        refreshSub.unsubscribe();
-        visibilitySub.unsubscribe();
-        clearInterval(pollId);
-      };
+    this.visibilitySub = fromEvent(document, 'visibilitychange').subscribe(() => {
+      if (document.visibilityState === 'visible') this.zone.run(() => this.fetchAll());
     });
+  }
+
+  private async fetchAll(): Promise<void> {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) return;
+    const msgs = (data ?? []) as Message[];
+    this.lastTimestamp = msgs.length ? (msgs[msgs.length - 1].created_at ?? null) : null;
+    this.messages.set(msgs);
+    this.loading.set(false);
+  }
+
+  private async fetchNew(): Promise<void> {
+    if (!this.lastTimestamp) { this.fetchAll(); return; }
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .gt('created_at', this.lastTimestamp)
+      .order('created_at', { ascending: true });
+    if (error) return;
+    const newMsgs = (data ?? []) as Message[];
+    if (newMsgs.length) {
+      const merged = [...this.messages(), ...newMsgs];
+      this.lastTimestamp = merged[merged.length - 1].created_at ?? null;
+      this.messages.set(merged);
+    }
   }
 
   async sendTextMessage(text: string): Promise<void> {
@@ -95,7 +75,7 @@ export class ChatService {
       content: text.trim()
     });
     if (error) throw error;
-    this.refresh$.next();
+    await this.fetchAll();
   }
 
   async updateMessage(id: string, content: string): Promise<void> {
@@ -104,7 +84,7 @@ export class ChatService {
       .update({ content: content.trim() })
       .eq('id', id);
     if (error) throw error;
-    this.refresh$.next();
+    await this.fetchAll();
   }
 
   async deleteMessage(id: string): Promise<void> {
@@ -113,7 +93,7 @@ export class ChatService {
       .delete()
       .eq('id', id);
     if (error) throw error;
-    this.refresh$.next();
+    await this.fetchAll();
   }
 
   async uploadMedia(file: Blob, type: MessageType, ext: string): Promise<void> {
@@ -134,6 +114,12 @@ export class ChatService {
       content: urlData.publicUrl
     });
     if (insertError) throw insertError;
-    this.refresh$.next();
+    await this.fetchAll();
+  }
+
+  ngOnDestroy(): void {
+    if (this.channel) supabase.removeChannel(this.channel);
+    if (this.pollId !== null) clearInterval(this.pollId);
+    this.visibilitySub.unsubscribe();
   }
 }

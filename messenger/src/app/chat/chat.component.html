@@ -21,17 +21,17 @@
   <!-- Messages -->
   <div #messageList class="messages-list flex-grow-1 overflow-auto py-3">
 
-    @if (loading()) {
+    @if (chatService.loading()) {
       <div class="d-flex justify-content-center mt-5">
         <mat-spinner diameter="40"></mat-spinner>
       </div>
-    } @else if (messages().length === 0) {
+    } @else if (chatService.messages().length === 0) {
       <div class="text-center text-muted mt-5">
         <mat-icon style="font-size:48px;width:48px;height:48px;">chat_bubble_outline</mat-icon>
         <p class="mt-2">Начните диалог</p>
       </div>
     } @else {
-      @for (msg of messages(); track msg.id) {
+      @for (msg of chatService.messages(); track msg.id) {
         <app-message
           [message]="msg"
           [isOwn]="isOwn(msg)"
