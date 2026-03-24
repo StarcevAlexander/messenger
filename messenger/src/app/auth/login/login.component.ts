@@ -52,9 +52,9 @@ export class LoginComponent {
     this.hide.set(!this.hide());
   }
 
-  async onInstallClick(): Promise<void> {
+  onInstallClick(): void {
     if (this.install.hasNativePrompt()) {
-      await this.install.promptInstall();
+      this.install.promptInstall().subscribe();
     } else if (this.install.isIOS()) {
       this.showIOSGuide.set(!this.showIOSGuide());
     }

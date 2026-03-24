@@ -1,6 +1,8 @@
 import {
   Component, ElementRef, OnDestroy, ViewChild, inject, signal
 } from '@angular/core';
+import { from, of } from 'rxjs';
+import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -47,15 +49,13 @@ export class MessageInputComponent implements OnDestroy {
 
   // ─── Text ──────────────────────────────────────────────────────────────────
 
-  async sendText(): Promise<void> {
+  sendText(): void {
     if (!this.text.trim()) return;
     this.loading.set(true);
-    try {
-      await this.chat.sendTextMessage(this.text);
-      this.text = '';
-    } finally {
-      this.loading.set(false);
-    }
+    this.chat.sendTextMessage(this.text).pipe(
+      tap(() => { this.text = ''; }),
+      finalize(() => this.loading.set(false))
+    ).subscribe();
   }
 
   onKeydown(event: KeyboardEvent): void {
@@ -72,52 +72,58 @@ export class MessageInputComponent implements OnDestroy {
     el.nativeElement.click();
   }
 
-  async onFileSelected(event: Event, type: 'image' | 'video'): Promise<void> {
-    const file = (event.target as HTMLInputElement).files?.[0];
+  onFileSelected(event: Event, type: 'image' | 'video'): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
     if (!file) return;
     this.loading.set(true);
-    try {
-      const ext = file.name.split('.').pop() || (type === 'image' ? 'jpg' : 'mp4');
-      await this.chat.uploadMedia(file, type, ext);
-    } finally {
-      this.loading.set(false);
-      (event.target as HTMLInputElement).value = '';
-    }
+    const ext = file.name.split('.').pop() || (type === 'image' ? 'jpg' : 'mp4');
+    this.chat.uploadMedia(file, type, ext).pipe(
+      finalize(() => {
+        this.loading.set(false);
+        input.value = '';
+      })
+    ).subscribe();
   }
 
   // ─── Camera capture ────────────────────────────────────────────────────────
 
-  async openCamera(mode: 'photo' | 'video'): Promise<void> {
+  openCamera(mode: 'photo' | 'video'): void {
     this.captureMode.set(mode);
     this.capturedBlob.set(null);
     this.capturedUrl.set('');
-    await this.startStream();
+    this.startStream().subscribe();
   }
 
-  private async startStream(): Promise<void> {
+  private startStream() {
     this.stopStream();
     const facingMode = this.useFrontCamera() ? 'user' : 'environment';
     const constraints: MediaStreamConstraints = {
       video: { facingMode },
       audio: this.captureMode() === 'video'
     };
-    try {
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setTimeout(() => {
-        if (this.cameraPreview?.nativeElement && this.stream) {
-          this.cameraPreview.nativeElement.srcObject = this.stream;
-        }
-      }, 50);
-    } catch (err) {
-      console.error('Camera error', err);
-      alert('Не удалось получить доступ к камере');
-      this.captureMode.set('none');
-    }
+    return from(navigator.mediaDevices.getUserMedia(constraints)).pipe(
+      tap(stream => {
+        this.stream = stream;
+        setTimeout(() => {
+          if (this.cameraPreview?.nativeElement && this.stream) {
+            this.cameraPreview.nativeElement.srcObject = this.stream;
+          }
+        }, 50);
+      }),
+      map(() => void 0),
+      catchError(err => {
+        console.error('Camera error', err);
+        alert('Не удалось получить доступ к камере');
+        this.captureMode.set('none');
+        return of(void 0);
+      })
+    );
   }
 
-  async flipCamera(): Promise<void> {
+  flipCamera(): void {
     this.useFrontCamera.set(!this.useFrontCamera());
-    await this.startStream();
+    this.startStream().subscribe();
   }
 
   takePhoto(): void {
@@ -158,21 +164,18 @@ export class MessageInputComponent implements OnDestroy {
     this.stopStream();
   }
 
-  async sendCaptured(): Promise<void> {
+  sendCaptured(): void {
     const blob = this.capturedBlob();
     if (!blob) return;
     const mode = this.captureMode();
     this.loading.set(true);
-    try {
-      if (mode === 'photo') {
-        await this.chat.uploadMedia(blob, 'image', 'jpg');
-      } else {
-        await this.chat.uploadMedia(blob, 'video', 'webm');
-      }
-      this.closeCapture();
-    } finally {
-      this.loading.set(false);
-    }
+    const upload$ = mode === 'photo'
+      ? this.chat.uploadMedia(blob, 'image', 'jpg')
+      : this.chat.uploadMedia(blob, 'video', 'webm');
+    upload$.pipe(
+      tap(() => this.closeCapture()),
+      finalize(() => this.loading.set(false))
+    ).subscribe();
   }
 
   closeCapture(): void {
@@ -189,31 +192,34 @@ export class MessageInputComponent implements OnDestroy {
 
   // ─── Voice recording ───────────────────────────────────────────────────────
 
-  async startVoice(): Promise<void> {
+  startVoice(): void {
     this.chunks = [];
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.stream = stream;
-      this.mediaRecorder = new MediaRecorder(stream);
-      this.mediaRecorder.ondataavailable = e => this.chunks.push(e.data);
-      this.mediaRecorder.onstop = async () => {
-        const blob = new Blob(this.chunks, { type: 'audio/webm' });
-        this.loading.set(true);
-        try {
-          await this.chat.uploadMedia(blob, 'audio', 'webm');
-        } finally {
-          this.loading.set(false);
-        }
-        this.stopStream();
-      };
-      this.mediaRecorder.start();
-      this.isRecording.set(true);
-      this.captureMode.set('audio');
-      this.recordingSeconds.set(0);
-      this.recordingTimer = setInterval(() => this.recordingSeconds.update(s => s + 1), 1000);
-    } catch {
-      alert('Не удалось получить доступ к микрофону');
-    }
+    from(navigator.mediaDevices.getUserMedia({ audio: true })).pipe(
+      tap(stream => {
+        this.stream = stream;
+        this.mediaRecorder = new MediaRecorder(stream);
+        this.mediaRecorder.ondataavailable = e => this.chunks.push(e.data);
+        this.mediaRecorder.onstop = () => {
+          const blob = new Blob(this.chunks, { type: 'audio/webm' });
+          this.loading.set(true);
+          this.chat.uploadMedia(blob, 'audio', 'webm').pipe(
+            finalize(() => {
+              this.loading.set(false);
+              this.stopStream();
+            })
+          ).subscribe();
+        };
+        this.mediaRecorder.start();
+        this.isRecording.set(true);
+        this.captureMode.set('audio');
+        this.recordingSeconds.set(0);
+        this.recordingTimer = setInterval(() => this.recordingSeconds.update(s => s + 1), 1000);
+      }),
+      catchError(() => {
+        alert('Не удалось получить доступ к микрофону');
+        return of(void 0);
+      })
+    ).subscribe();
   }
 
   stopVoice(): void {

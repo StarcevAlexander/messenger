@@ -1,6 +1,8 @@
 import {
   Component, inject, ViewChild, ElementRef, AfterViewChecked, effect
 } from '@angular/core';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -53,20 +55,22 @@ export class ChatComponent implements AfterViewChecked {
     return msg.sender_id === this.auth.currentUser()?.id;
   }
 
-  async onDelete(id: string): Promise<void> {
-    try {
-      await this.chatService.deleteMessage(id);
-    } catch {
-      this.snack.open('Ошибка удаления', 'OK', { duration: 3000 });
-    }
+  onDelete(id: string): void {
+    this.chatService.deleteMessage(id).pipe(
+      catchError(() => {
+        this.snack.open('Ошибка удаления', 'OK', { duration: 3000 });
+        return of(void 0);
+      })
+    ).subscribe();
   }
 
-  async onEdit(event: { id: string; content: string }): Promise<void> {
-    try {
-      await this.chatService.updateMessage(event.id, event.content);
-    } catch {
-      this.snack.open('Ошибка редактирования', 'OK', { duration: 3000 });
-    }
+  onEdit(event: { id: string; content: string }): void {
+    this.chatService.updateMessage(event.id, event.content).pipe(
+      catchError(() => {
+        this.snack.open('Ошибка редактирования', 'OK', { duration: 3000 });
+        return of(void 0);
+      })
+    ).subscribe();
   }
 
   ngAfterViewChecked(): void {

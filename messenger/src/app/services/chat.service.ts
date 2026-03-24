@@ -1,7 +1,6 @@
 import { Injectable, inject, NgZone, signal, OnDestroy } from '@angular/core';
 import { Observable, Subscription, from, fromEvent, of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
-import { firstValueFrom } from 'rxjs';
+import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { Message, MessageType } from '../models/message.model';
 import { AuthService } from './auth.service';
 import { supabase } from './supabase.client';
@@ -76,56 +75,68 @@ export class ChatService implements OnDestroy {
     );
   }
 
-  async sendTextMessage(text: string): Promise<void> {
+  sendTextMessage(text: string): Observable<void> {
     const user = this.auth.currentUser();
-    if (!user || !text.trim()) return;
-    const { error } = await supabase.from('messages').insert({
-      sender_id: user.id,
-      sender_name: user.name,
-      type: 'text' as MessageType,
-      content: text.trim()
-    });
-    if (error) throw error;
-    await firstValueFrom(this.fetchAll());
+    if (!user || !text.trim()) return of(void 0);
+    return from(
+      supabase.from('messages').insert({
+        sender_id: user.id,
+        sender_name: user.name,
+        type: 'text' as MessageType,
+        content: text.trim()
+      })
+    ).pipe(
+      switchMap(({ error }) => {
+        if (error) throw error;
+        return this.fetchAll();
+      })
+    );
   }
 
-  async updateMessage(id: string, content: string): Promise<void> {
-    const { error } = await supabase
-      .from('messages')
-      .update({ content: content.trim() })
-      .eq('id', id);
-    if (error) throw error;
-    await firstValueFrom(this.fetchAll());
+  updateMessage(id: string, content: string): Observable<void> {
+    return from(
+      supabase.from('messages').update({ content: content.trim() }).eq('id', id)
+    ).pipe(
+      switchMap(({ error }) => {
+        if (error) throw error;
+        return this.fetchAll();
+      })
+    );
   }
 
-  async deleteMessage(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('messages')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-    await firstValueFrom(this.fetchAll());
+  deleteMessage(id: string): Observable<void> {
+    return from(
+      supabase.from('messages').delete().eq('id', id)
+    ).pipe(
+      switchMap(({ error }) => {
+        if (error) throw error;
+        return this.fetchAll();
+      })
+    );
   }
 
-  async uploadMedia(file: Blob, type: MessageType, ext: string): Promise<void> {
+  uploadMedia(file: Blob, type: MessageType, ext: string): Observable<void> {
     const user = this.auth.currentUser();
-    if (!user) return;
-
+    if (!user) return of(void 0);
     const filename = `${type}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(filename, file, { cacheControl: '3600', upsert: false });
-    if (uploadError) throw uploadError;
-
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filename);
-    const { error: insertError } = await supabase.from('messages').insert({
-      sender_id: user.id,
-      sender_name: user.name,
-      type,
-      content: urlData.publicUrl
-    });
-    if (insertError) throw insertError;
-    await firstValueFrom(this.fetchAll());
+    return from(
+      supabase.storage.from(BUCKET).upload(filename, file, { cacheControl: '3600', upsert: false })
+    ).pipe(
+      switchMap(({ error: uploadError }) => {
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filename);
+        return from(supabase.from('messages').insert({
+          sender_id: user.id,
+          sender_name: user.name,
+          type,
+          content: urlData.publicUrl
+        }));
+      }),
+      switchMap(({ error: insertError }) => {
+        if (insertError) throw insertError;
+        return this.fetchAll();
+      })
+    );
   }
 
   ngOnDestroy(): void {

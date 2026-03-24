@@ -1,23 +1,22 @@
 import { Injectable, signal } from '@angular/core';
+import { Observable, from, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
 export class InstallPromptService {
   private deferredPrompt = signal<any>(null);
 
   constructor() {
-    // Android / Chrome / Edge: перехватываем нативный промпт
     window.addEventListener('beforeinstallprompt', (e: Event) => {
       e.preventDefault();
       this.deferredPrompt.set(e);
     });
 
-    // После установки сбрасываем
     window.addEventListener('appinstalled', () => {
       this.deferredPrompt.set(null);
     });
   }
 
-  /** Запущено ли приложение как PWA (установлено) */
   isInstalled(): boolean {
     return (
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -25,7 +24,6 @@ export class InstallPromptService {
     );
   }
 
-  /** iOS Safari */
   isIOS(): boolean {
     return (
       /iphone|ipad|ipod/i.test(navigator.userAgent) &&
@@ -33,27 +31,25 @@ export class InstallPromptService {
     );
   }
 
-  /** Показывать ли кнопку «Установить» */
   showInstallButton(): boolean {
     if (this.isInstalled()) return false;
-    // Android/Chrome — есть нативный промпт
     if (this.deferredPrompt() !== null) return true;
-    // iOS — нет автопромпта, показываем инструкцию
     if (this.isIOS()) return true;
     return false;
   }
 
-  /** Нативный промпт (Android/Chrome) или null (iOS) */
   hasNativePrompt(): boolean {
     return this.deferredPrompt() !== null;
   }
 
-  /** Вызвать установку (только Android/Chrome) */
-  async promptInstall(): Promise<void> {
+  promptInstall(): Observable<void> {
     const prompt = this.deferredPrompt();
-    if (!prompt) return;
-    await prompt.prompt();
-    await prompt.userChoice;
-    this.deferredPrompt.set(null);
+    if (!prompt) return of(void 0);
+    return from(prompt.prompt() as Promise<void>).pipe(
+      switchMap(() => from(prompt.userChoice as Promise<any>)),
+      map(() => {
+        this.deferredPrompt.set(null);
+      })
+    );
   }
 }
