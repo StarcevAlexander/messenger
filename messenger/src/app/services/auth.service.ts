@@ -4,6 +4,9 @@ import { User, USERS } from '../models/message.model';
 
 const STORAGE_KEY = 'messenger_user';
 
+// Only safe fields stored — PIN is never persisted
+interface StoredUser { id: string; name: string; }
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   currentUser = signal<User | null>(this.loadUser());
@@ -13,7 +16,10 @@ export class AuthService {
   private loadUser(): User | null {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const stored: StoredUser = JSON.parse(raw);
+      // Re-validate against known users (no PIN in storage)
+      return USERS.find(u => u.id === stored.id && u.name === stored.name) ?? null;
     } catch {
       return null;
     }
@@ -22,7 +28,9 @@ export class AuthService {
   login(pin: string): boolean {
     const user = USERS.find(u => u.pin === pin.trim());
     if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      // Store only id + name, never the PIN
+      const safe: StoredUser = { id: user.id, name: user.name };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
       this.currentUser.set(user);
       return true;
     }
