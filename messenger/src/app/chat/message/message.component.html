@@ -1,7 +1,7 @@
 <div class="message-wrapper d-flex mb-2" [class.own]="isOwn" [class.other]="!isOwn">
   <div class="message-bubble">
     @if (!isOwn) {
-      <div class="sender-name small fw-bold mb-1">{{ message.senderName }}</div>
+      <div class="sender-name small fw-bold mb-1">{{ message.sender_name }}</div>
     }
 
     @switch (message.type) {

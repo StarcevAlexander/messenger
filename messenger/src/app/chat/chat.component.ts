@@ -56,7 +56,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   isOwn(msg: Message): boolean {
-    return msg.senderId === this.auth.currentUser()?.id;
+    return msg.sender_id === this.auth.currentUser()?.id;
   }
 
   private scrollToBottom(): void {

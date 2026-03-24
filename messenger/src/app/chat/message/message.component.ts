@@ -14,14 +14,11 @@ export class MessageComponent {
   @Input() message!: Message;
   @Input() isOwn = false;
 
-  openMedia(url: string): void {
-    window.open(url, '_blank');
+  getTime(): Date {
+    return this.message.created_at ? new Date(this.message.created_at) : new Date();
   }
 
-  getTime(): Date {
-    const ts = this.message.timestamp as any;
-    if (ts?.toDate) return ts.toDate();
-    if (ts instanceof Date) return ts;
-    return new Date();
+  openMedia(url: string): void {
+    window.open(url, '_blank');
   }
 }

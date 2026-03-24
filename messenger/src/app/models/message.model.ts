@@ -1,15 +1,13 @@
-import { Timestamp } from '@angular/fire/firestore';
-
 export type MessageType = 'text' | 'image' | 'video' | 'audio';
 
 export interface Message {
   id?: string;
-  senderId: string;
-  senderName: string;
+  sender_id: string;
+  sender_name: string;
   type: MessageType;
-  content: string;       // text or download URL
-  thumbnailUrl?: string; // for video
-  timestamp: Timestamp | Date;
+  content: string;       // text or public URL
+  thumbnail_url?: string;
+  created_at?: string;   // ISO string from Supabase
 }
 
 export interface User {

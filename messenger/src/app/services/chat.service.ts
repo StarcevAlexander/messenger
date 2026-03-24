@@ -1,64 +1,87 @@
-import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  collection,
-  addDoc,
-  query,
-  orderBy,
-  collectionData,
-  serverTimestamp
-} from '@angular/fire/firestore';
-import {
-  Storage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from '@angular/fire/storage';
+import { Injectable, inject, NgZone } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Message, MessageType } from '../models/message.model';
 import { AuthService } from './auth.service';
+import { supabase } from './supabase.client';
+
+const BUCKET = 'media';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
-  private firestore = inject(Firestore);
-  private storage = inject(Storage);
   private auth = inject(AuthService);
+  private zone = inject(NgZone);
 
   getMessages(): Observable<Message[]> {
-    const col = collection(this.firestore, 'messages');
-    const q = query(col, orderBy('timestamp', 'asc'));
-    return collectionData(q, { idField: 'id' }) as Observable<Message[]>;
+    return new Observable(observer => {
+      // Initial load
+      supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .then(({ data, error }) => {
+          if (error) return observer.error(error);
+          observer.next((data ?? []) as Message[]);
+        });
+
+      // Real-time subscription
+      const channel = supabase
+        .channel('messages-channel')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          payload => {
+            this.zone.run(() => {
+              supabase
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: true })
+                .then(({ data }) => {
+                  if (data) observer.next(data as Message[]);
+                });
+            });
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    });
   }
 
   async sendTextMessage(text: string): Promise<void> {
     const user = this.auth.currentUser();
     if (!user || !text.trim()) return;
-    const col = collection(this.firestore, 'messages');
-    await addDoc(col, {
-      senderId: user.id,
-      senderName: user.name,
+    const { error } = await supabase.from('messages').insert({
+      sender_id: user.id,
+      sender_name: user.name,
       type: 'text' as MessageType,
-      content: text.trim(),
-      timestamp: serverTimestamp()
+      content: text.trim()
     });
+    if (error) throw error;
   }
 
   async uploadMedia(file: Blob, type: MessageType, ext: string): Promise<void> {
     const user = this.auth.currentUser();
     if (!user) return;
 
-    const filename = `${Date.now()}.${ext}`;
-    const storageRef = ref(this.storage, `media/${type}/${filename}`);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
+    const filename = `${type}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(filename, file, { cacheControl: '3600', upsert: false });
 
-    const col = collection(this.firestore, 'messages');
-    await addDoc(col, {
-      senderId: user.id,
-      senderName: user.name,
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage
+      .from(BUCKET)
+      .getPublicUrl(filename);
+
+    const { error: insertError } = await supabase.from('messages').insert({
+      sender_id: user.id,
+      sender_name: user.name,
       type,
-      content: url,
-      timestamp: serverTimestamp()
+      content: urlData.publicUrl
     });
+    if (insertError) throw insertError;
   }
 }
