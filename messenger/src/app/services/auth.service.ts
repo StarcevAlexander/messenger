@@ -15,7 +15,7 @@ export class AuthService {
 
   private loadUser(): User | null {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = sessionStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const stored: StoredUser = JSON.parse(raw);
       // Re-validate against known users (no PIN in storage)
@@ -30,7 +30,7 @@ export class AuthService {
     if (user) {
       // Store only id + name, never the PIN
       const safe: StoredUser = { id: user.id, name: user.name };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
       this.currentUser.set(user);
       return true;
     }
@@ -38,7 +38,7 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
     this.currentUser.set(null);
     this.router.navigate(['/login']);
   }

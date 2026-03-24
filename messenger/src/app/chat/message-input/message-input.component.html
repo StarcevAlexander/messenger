@@ -73,13 +73,13 @@
   <input #videoInput type="file" accept="video/*" class="d-none" (change)="onFileSelected($event, 'video')" />
 
   <!-- Media buttons -->
-  <button mat-icon-button matTooltip="Фото из галереи" (click)="triggerFileInput('image')">
+  <button mat-icon-button matTooltip="Фото из галереи" (click)="triggerFileInput('image')" [disabled]="loading()">
     <mat-icon>photo</mat-icon>
   </button>
-  <button mat-icon-button matTooltip="Камера" (click)="openCamera('photo')">
+  <button mat-icon-button matTooltip="Камера" (click)="openCamera('photo')" [disabled]="loading()">
     <mat-icon>camera_alt</mat-icon>
   </button>
-  <button mat-icon-button matTooltip="Видео" (click)="openCamera('video')">
+  <button mat-icon-button matTooltip="Видео" (click)="openCamera('video')" [disabled]="loading()">
     <mat-icon>videocam</mat-icon>
   </button>
 
@@ -90,7 +90,7 @@
     </button>
     <span class="recording-badge-inline">{{ formatTime(recordingSeconds()) }}</span>
   } @else {
-    <button mat-icon-button matTooltip="Голосовое сообщение" (click)="startVoice()">
+    <button mat-icon-button matTooltip="Голосовое сообщение" (click)="startVoice()" [disabled]="loading()">
       <mat-icon>mic</mat-icon>
     </button>
   }
