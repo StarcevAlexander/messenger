@@ -31,7 +31,7 @@ export class MessageComponent {
   // ─── Long-press (mobile) ───────────────────────────────────────────────────
 
   onTouchStart(): void {
-    if (!this.isOwn || this.message.type !== 'text') return;
+    if (!this.isOwn) return;
     this.pressTimer = setTimeout(() => this.showActions.set(true), 500);
   }
 
