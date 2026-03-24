@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { User, USERS } from '../models/message.model';
 
@@ -9,9 +9,8 @@ interface StoredUser { id: string; name: string; }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private router = inject(Router);
   currentUser = signal<User | null>(this.loadUser());
-
-  constructor(private router: Router) {}
 
   private loadUser(): User | null {
     try {

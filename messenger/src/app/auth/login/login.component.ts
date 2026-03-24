@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -26,16 +26,16 @@ import { InstallPromptService } from '../../services/install-prompt.service';
   styleUrl: './login.component.scss'
 })
 export class LoginComponent {
+  private auth = inject(AuthService);
+  private router = inject(Router);
+  install = inject(InstallPromptService);
+
   pin = '';
   error = signal('');
   hide = signal(true);
   showIOSGuide = signal(false);
 
-  constructor(
-    private auth: AuthService,
-    private router: Router,
-    public install: InstallPromptService
-  ) {
+  constructor() {
     if (this.auth.isLoggedIn()) this.router.navigate(['/chat']);
   }
 
