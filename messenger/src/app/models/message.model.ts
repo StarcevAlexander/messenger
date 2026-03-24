@@ -17,6 +17,6 @@ export interface User {
 }
 
 export const USERS: User[] = [
-  { id: '1', name: 'User 1', pin: '123' },
-  { id: '2', name: 'User 2', pin: '412' }
+  { id: '1', name: 'Юстас', pin: '512' },
+  { id: '2', name: 'Алекс', pin: '128' }
 ];
