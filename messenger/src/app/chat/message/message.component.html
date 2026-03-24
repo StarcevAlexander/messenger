@@ -19,7 +19,6 @@
           [(ngModel)]="editText"
           (keydown)="onEditKeydown($event)"
           rows="2"
-          autofocus
         ></textarea>
         <div class="d-flex gap-1 mt-1 justify-content-end">
           <button mat-icon-button class="action-btn" matTooltip="Отмена" (click)="cancelEdit()">
@@ -31,77 +30,60 @@
         </div>
       </div>
     } @else {
+
       <!-- Message content -->
       @switch (message.type) {
         @case ('text') {
           <p class="mb-0 text-break msg-text">{{ message.content }}</p>
         }
         @case ('image') {
-          <div class="media-wrap position-relative">
-            <img
-              [src]="message.content"
-              class="msg-media rounded"
-              alt="Image"
-              loading="lazy"
-              (click)="openMedia(message.content)"
-            />
-            @if (isOwn) {
-              <button mat-mini-fab class="media-delete-btn" color="warn"
-                (click)="confirmDelete($event)" matTooltip="Удалить">
-                <mat-icon>delete</mat-icon>
-              </button>
-            }
-          </div>
+          <img
+            [src]="message.content"
+            class="msg-media rounded"
+            alt="Image"
+            loading="lazy"
+            (click)="openMedia(message.content)"
+          />
         }
         @case ('video') {
-          <div class="media-wrap position-relative">
-            <video
-              [src]="message.content"
-              class="msg-media rounded"
-              controls
-              playsinline
-              preload="metadata"
-            ></video>
-            @if (isOwn) {
-              <button mat-mini-fab class="media-delete-btn" color="warn"
-                (click)="confirmDelete($event)" matTooltip="Удалить">
-                <mat-icon>delete</mat-icon>
-              </button>
-            }
-          </div>
+          <video
+            [src]="message.content"
+            class="msg-media rounded"
+            controls
+            playsinline
+            preload="metadata"
+          ></video>
         }
         @case ('audio') {
           <div class="audio-wrapper d-flex align-items-center gap-2">
             <mat-icon class="text-secondary">mic</mat-icon>
             <audio [src]="message.content" controls class="audio-player"></audio>
-            @if (isOwn) {
-              <button mat-icon-button color="warn"
-                (click)="confirmDelete($event)" matTooltip="Удалить">
-                <mat-icon>delete</mat-icon>
-              </button>
-            }
           </div>
         }
       }
 
-      <!-- Time + edited marker + 3-dot button -->
+      <!-- Bottom bar: time + actions -->
       <div class="msg-meta d-flex align-items-center justify-content-end gap-1 mt-1">
         <span class="msg-time">{{ getTime() | date:'HH:mm' }}</span>
 
         @if (isOwn) {
-          <button
-            mat-icon-button
-            class="dots-btn"
-            (click)="toggleActions($event)"
-            matTooltip="Действия"
-          >
-            <mat-icon class="tiny-icon">more_vert</mat-icon>
-          </button>
+          @if (message.type === 'text') {
+            <!-- Text: 3-dot menu -->
+            <button mat-icon-button class="dots-btn" (click)="toggleActions($event)" matTooltip="Действия">
+              <mat-icon class="tiny-icon">more_vert</mat-icon>
+            </button>
+          } @else {
+            <!-- Media: always-visible delete -->
+            <button mat-icon-button color="warn" class="delete-btn" (click)="confirmDelete($event)" matTooltip="Удалить">
+              <mat-icon class="tiny-icon">delete</mat-icon>
+            </button>
+          }
         }
       </div>
+
     }
 
-    <!-- Actions popup (only for text messages) -->
+    <!-- Actions popup (text only) -->
     @if (showActions() && message.type === 'text') {
       <div class="actions-popup" (click)="$event.stopPropagation()">
         <button mat-button class="action-item" (click)="startEdit($event)">
